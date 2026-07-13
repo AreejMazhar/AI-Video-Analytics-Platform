@@ -11,6 +11,8 @@ const VideoProcessing = () => {
   const [processingStatus, setProcessingStatus] = useState('idle'); // idle, processing, complete, error
   const [progress, setProgress] = useState(0);
   const [selectedModels, setSelectedModels] = useState({
+    faceDetection: true,
+    faceRecognition: true,
     person: true,
     vehicle: true,
     ppe: false,
@@ -18,6 +20,7 @@ const VideoProcessing = () => {
     intrusion: false,
     crowd: false,
     fall: false,
+    abandonedObject: false,
     license: false,
   });
 
@@ -27,7 +30,7 @@ const VideoProcessing = () => {
       id: 1,
       name: 'Office_Full_Footage.mp4',
       date: '2024-07-13',
-      models: ['Person Detection', 'Vehicle Detection'],
+      models: ['Face Detection', 'Face Recognition', 'Person Detection'],
       status: 'completed',
       detections: 342,
       alerts: 5,
@@ -37,7 +40,7 @@ const VideoProcessing = () => {
       id: 2,
       name: 'Warehouse_Evening.mp4',
       date: '2024-07-12',
-      models: ['PPE Detection', 'Fire & Smoke'],
+      models: ['PPE Detection', 'Fire & Smoke', 'Abandoned Object'],
       status: 'processing',
       detections: 0,
       alerts: 0,
@@ -55,7 +58,10 @@ const VideoProcessing = () => {
     },
   ]);
 
+  // All 11 models available for video processing
   const modelOptions = [
+    { id: 'faceDetection', label: 'Face Detection', icon: '👤' },
+    { id: 'faceRecognition', label: 'Face Recognition', icon: '🪪' },
     { id: 'person', label: 'Person Detection', icon: '🚶' },
     { id: 'vehicle', label: 'Vehicle Detection', icon: '🚗' },
     { id: 'ppe', label: 'PPE Detection', icon: '⛑️' },
@@ -63,6 +69,7 @@ const VideoProcessing = () => {
     { id: 'intrusion', label: 'Intrusion Detection', icon: '🚫' },
     { id: 'crowd', label: 'Crowd Detection', icon: '👥' },
     { id: 'fall', label: 'Fall Detection', icon: '⚠️' },
+    { id: 'abandonedObject', label: 'Abandoned Object', icon: '🧳' },
     { id: 'license', label: 'License Plate', icon: '📋' },
   ];
 
@@ -90,13 +97,15 @@ const VideoProcessing = () => {
           setProcessing(false);
           setProcessingStatus('complete');
           // Add to processed list
+          const selectedModelLabels = Object.keys(selectedModels)
+            .filter(key => selectedModels[key])
+            .map(key => modelOptions.find(m => m.id === key)?.label);
+          
           const newVideo = {
             id: Date.now(),
             name: selectedVideo.name,
             date: new Date().toISOString().split('T')[0],
-            models: Object.keys(selectedModels).filter(key => selectedModels[key]).map(key => 
-              modelOptions.find(m => m.id === key)?.label
-            ),
+            models: selectedModelLabels,
             status: 'completed',
             detections: Math.floor(Math.random() * 500) + 50,
             alerts: Math.floor(Math.random() * 10),
@@ -128,6 +137,9 @@ const VideoProcessing = () => {
     return labels[status] || status;
   };
 
+  // Count selected models
+  const selectedCount = Object.values(selectedModels).filter(v => v).length;
+
   return (
     <div>
       {/* Header */}
@@ -136,7 +148,7 @@ const VideoProcessing = () => {
           Video Processing
         </h1>
         <p style={{ color: '#6b7280', fontSize: '14px' }}>
-          Upload videos and process them with AI models
+          Upload videos and process them with all 11 AI models
         </p>
       </div>
 
@@ -221,9 +233,21 @@ const VideoProcessing = () => {
 
             {/* Selected Models */}
             <div style={{ marginTop: '20px' }}>
-              <p style={{ fontSize: '14px', fontWeight: '500', marginBottom: '12px' }}>
-                Select AI Models to Process
-              </p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <p style={{ fontSize: '14px', fontWeight: '500', margin: 0 }}>
+                  Select AI Models to Process
+                </p>
+                <span style={{
+                  fontSize: '12px',
+                  padding: '2px 12px',
+                  background: '#dbeafe',
+                  borderRadius: '12px',
+                  color: '#1a3a5c',
+                  fontWeight: '600'
+                }}>
+                  {selectedCount} / {modelOptions.length} selected
+                </span>
+              </div>
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
@@ -235,11 +259,12 @@ const VideoProcessing = () => {
                     alignItems: 'center',
                     gap: '8px',
                     padding: '8px 12px',
-                    background: '#f8fafc',
+                    background: selectedModels[model.id] ? '#dbeafe' : '#f8fafc',
                     borderRadius: '6px',
-                    border: '1px solid #f0f2f5',
+                    border: selectedModels[model.id] ? '1px solid #4a90d9' : '1px solid #f0f2f5',
                     fontSize: '13px',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
                   }}>
                     <input
                       type="checkbox"
@@ -261,16 +286,16 @@ const VideoProcessing = () => {
             {selectedVideo && (
               <button
                 onClick={startProcessing}
-                disabled={processing || processingStatus === 'complete'}
+                disabled={processing || processingStatus === 'complete' || selectedCount === 0}
                 style={{
                   width: '100%',
                   marginTop: '20px',
                   padding: '12px',
-                  background: processing ? '#f5f7fa' : processingStatus === 'complete' ? '#22c55e' : '#1a3a5c',
+                  background: processing ? '#f5f7fa' : processingStatus === 'complete' ? '#22c55e' : selectedCount === 0 ? '#d1d5db' : '#1a3a5c',
                   color: processing ? '#6b7280' : 'white',
                   border: 'none',
                   borderRadius: '8px',
-                  cursor: processing ? 'not-allowed' : 'pointer',
+                  cursor: (processing || processingStatus === 'complete' || selectedCount === 0) ? 'not-allowed' : 'pointer',
                   fontWeight: '600',
                   fontSize: '16px',
                   display: 'flex',
@@ -282,7 +307,7 @@ const VideoProcessing = () => {
                 {processingStatus === 'idle' && (
                   <>
                     <FiPlay size={18} />
-                    Start Processing
+                    Start Processing ({selectedCount} models)
                   </>
                 )}
                 {processingStatus === 'processing' && (
@@ -298,6 +323,12 @@ const VideoProcessing = () => {
                   </>
                 )}
               </button>
+            )}
+
+            {selectedCount === 0 && selectedVideo && (
+              <p style={{ fontSize: '12px', color: '#ef4444', marginTop: '8px', textAlign: 'center' }}>
+                Please select at least one model to process
+              </p>
             )}
 
             {/* Progress Bar */}

@@ -3,24 +3,26 @@ import { FiToggleLeft, FiToggleRight, FiSliders, FiInfo, FiVideo, FiUpload } fro
 
 const ModelLibrary = () => {
   const [models, setModels] = useState([
+    // LIVE + VIDEO MODELS (2)
     { 
       id: 1, 
       name: 'Face Detection', 
       enabled: true, 
-      mode: 'Live', 
+      mode: 'Live + Video', 
       icon: '👤',
       confidence: 0.75,
-      description: 'Detect and track faces in real-time from live camera'
+      description: 'Detect and track faces in real-time and uploaded videos'
     },
     { 
       id: 2, 
       name: 'Face Recognition', 
       enabled: true, 
-      mode: 'Live',
+      mode: 'Live + Video',
       icon: '🪪',
       confidence: 0.80,
-      description: 'Identify known faces from database (live camera only)'
+      description: 'Identify known faces from database (live + video)'
     },
+    // VIDEO ONLY MODELS (9)
     { 
       id: 3, 
       name: 'Person Detection', 
@@ -86,6 +88,15 @@ const ModelLibrary = () => {
     },
     { 
       id: 10, 
+      name: 'Abandoned Object Detection', 
+      enabled: false, 
+      mode: 'Video',
+      icon: '🧳',
+      confidence: 0.75,
+      description: 'Detect unattended bags/objects with time-based alerts'
+    },
+    { 
+      id: 11, 
       name: 'License Plate Recognition', 
       enabled: false, 
       mode: 'Video',
@@ -107,7 +118,7 @@ const ModelLibrary = () => {
     ));
   };
 
-  const liveModels = models.filter(m => m.mode === 'Live');
+  const liveVideoModels = models.filter(m => m.mode === 'Live + Video');
   const videoModels = models.filter(m => m.mode === 'Video');
 
   return (
@@ -152,10 +163,10 @@ const ModelLibrary = () => {
           </div>
           <div>
             <p style={{ fontSize: '14px', fontWeight: '600', color: '#1a3a5c', margin: 0 }}>
-              Live Camera Models ({liveModels.length})
+              Live + Video Models ({liveVideoModels.length})
             </p>
             <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>
-              Face Detection & Recognition - Real-time processing
+              Face Detection & Recognition - Real-time + Video
             </p>
           </div>
         </div>
@@ -231,11 +242,11 @@ const ModelLibrary = () => {
                     fontSize: '11px',
                     padding: '2px 10px',
                     borderRadius: '12px',
-                    background: model.mode === 'Live' ? '#dbeafe' : '#fef3c7',
-                    color: model.mode === 'Live' ? '#1a3a5c' : '#92400e',
+                    background: model.mode === 'Live + Video' ? '#dbeafe' : '#fef3c7',
+                    color: model.mode === 'Live + Video' ? '#1a3a5c' : '#92400e',
                     fontWeight: '500'
                   }}>
-                    {model.mode === 'Live' ? <FiVideo size={12} style={{ marginRight: '4px' }} /> : <FiUpload size={12} style={{ marginRight: '4px' }} />}
+                    {model.mode === 'Live + Video' ? <FiVideo size={12} style={{ marginRight: '4px' }} /> : <FiUpload size={12} style={{ marginRight: '4px' }} />}
                     {model.mode}
                   </span>
                 </div>
