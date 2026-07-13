@@ -1,18 +1,36 @@
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 
 const AuthContext = createContext();
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
-  // Mock login - will connect to backend later
+  // Check for existing session on mount
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        localStorage.removeItem('user');
+      }
+    }
+    setIsChecking(false);
+  }, []);
+
   const login = async (email, password) => {
     setLoading(true);
     
-    // Simulate API call
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         if (email === 'admin@invexal.com' && password === 'admin123') {
@@ -43,6 +61,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     loading,
+    isChecking,
     isAuthenticated: !!user
   };
 
