@@ -15,13 +15,19 @@ app = FastAPI(
     redoc_url="/api/redoc"
 )
 
-# CORS
+# CORS - Allow frontend to communicate with backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=[
+        "http://localhost:5173",      # Vite dev server
+        "http://localhost:3000",      # Alternative dev server
+        "http://127.0.0.1:5173",      # Localhost alternative
+        "http://127.0.0.1:3000",      # Localhost alternative
+        "https://your-vercel-app.vercel.app",  # Production URL (update later)
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],              # Allow all HTTP methods (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],              # Allow all headers
 )
 
 # Include API routes

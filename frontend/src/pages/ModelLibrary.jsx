@@ -1,125 +1,131 @@
-import React, { useState } from 'react';
-import { FiToggleLeft, FiToggleRight, FiSliders, FiInfo, FiVideo, FiUpload } from 'react-icons/fi';
+import React, { useState, useEffect } from 'react';
+import { FiToggleLeft, FiToggleRight, FiInfo, FiVideo, FiUpload } from 'react-icons/fi';
+import { modelService } from '../api/services/modelService';
 
 const ModelLibrary = () => {
-  const [models, setModels] = useState([
-    // LIVE + VIDEO MODELS (2)
-    { 
-      id: 1, 
-      name: 'Face Detection', 
-      enabled: true, 
-      mode: 'Live + Video', 
-      icon: '👤',
-      confidence: 0.75,
-      description: 'Detect and track faces in real-time and uploaded videos'
-    },
-    { 
-      id: 2, 
-      name: 'Face Recognition', 
-      enabled: true, 
-      mode: 'Live + Video',
-      icon: '🪪',
-      confidence: 0.80,
-      description: 'Identify known faces from database (live + video)'
-    },
-    // VIDEO ONLY MODELS (9)
-    { 
-      id: 3, 
-      name: 'Person Detection', 
-      enabled: true, 
-      mode: 'Video',
-      icon: '🚶',
-      confidence: 0.60,
-      description: 'Detect people in uploaded videos'
-    },
-    { 
-      id: 4, 
-      name: 'Vehicle Detection', 
-      enabled: false, 
-      mode: 'Video',
-      icon: '🚗',
-      confidence: 0.65,
-      description: 'Detect cars, bikes, trucks, and buses in videos'
-    },
-    { 
-      id: 5, 
-      name: 'PPE Detection', 
-      enabled: false, 
-      mode: 'Video',
-      icon: '⛑️',
-      confidence: 0.70,
-      description: 'Detect helmets, vests, gloves, and masks'
-    },
-    { 
-      id: 6, 
-      name: 'Fire & Smoke Detection', 
-      enabled: false, 
-      mode: 'Video',
-      icon: '🔥',
-      confidence: 0.80,
-      description: 'Detect fire and smoke in video footage'
-    },
-    { 
-      id: 7, 
-      name: 'Intrusion Detection', 
-      enabled: false, 
-      mode: 'Video',
-      icon: '🚫',
-      confidence: 0.75,
-      description: 'Detect entry into restricted zones'
-    },
-    { 
-      id: 8, 
-      name: 'Crowd Detection', 
-      enabled: false, 
-      mode: 'Video',
-      icon: '👥',
-      confidence: 0.70,
-      description: 'Count people and detect crowd density'
-    },
-    { 
-      id: 9, 
-      name: 'Fall Detection', 
-      enabled: false, 
-      mode: 'Video',
-      icon: '⚠️',
-      confidence: 0.85,
-      description: 'Detect falls and trigger emergency alerts'
-    },
-    { 
-      id: 10, 
-      name: 'Abandoned Object Detection', 
-      enabled: false, 
-      mode: 'Video',
-      icon: '🧳',
-      confidence: 0.75,
-      description: 'Detect unattended bags/objects with time-based alerts'
-    },
-    { 
-      id: 11, 
-      name: 'License Plate Recognition', 
-      enabled: false, 
-      mode: 'Video',
-      icon: '📋',
-      confidence: 0.75,
-      description: 'Detect and read license plates from videos'
-    },
-  ]);
+  const [models, setModels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [updating, setUpdating] = useState(null);
 
-  const toggleModel = (id) => {
-    setModels(models.map(model => 
+  // Fetch models from backend on mount
+  useEffect(() => {
+    fetchModels();
+  }, []);
+
+  const fetchModels = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await modelService.getAllModels();
+      setModels(data);
+    } catch (err) {
+      setError('Failed to load models. Please refresh the page.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleModel = async (id) => {
+    const modelToUpdate = models.find(m => m.id === id);
+    if (!modelToUpdate) return;
+
+    // Optimistically update UI
+    setModels(models.map(model =>
       model.id === id ? { ...model, enabled: !model.enabled } : model
     ));
+    setUpdating(id);
+
+    try {
+      await modelService.updateModel(id, {
+        enabled: !modelToUpdate.enabled
+      });
+    } catch (err) {
+      // Revert if failed
+      setModels(models.map(model =>
+        model.id === id ? { ...model, enabled: modelToUpdate.enabled } : model
+      ));
+      setError('Failed to update model. Please try again.');
+    } finally {
+      setUpdating(null);
+    }
   };
 
-  const updateConfidence = (id, value) => {
-    setModels(models.map(model => 
-      model.id === id ? { ...model, confidence: parseFloat(value) } : model
+  const updateConfidence = async (id, value) => {
+    const threshold = parseFloat(value);
+    const modelToUpdate = models.find(m => m.id === id);
+    if (!modelToUpdate) return;
+
+    // Update local state
+    setModels(models.map(model =>
+      model.id === id ? { ...model, confidence_threshold: threshold } : model
     ));
+
+    try {
+      await modelService.updateModel(id, {
+        confidence_threshold: threshold
+      });
+    } catch (err) {
+      // Revert on failure
+      setModels(models.map(model =>
+        model.id === id ? { ...model, confidence_threshold: modelToUpdate.confidence_threshold } : model
+      ));
+      setError('Failed to update confidence threshold.');
+    }
   };
 
-  const liveVideoModels = models.filter(m => m.mode === 'Live + Video');
-  const videoModels = models.filter(m => m.mode === 'Video');
+  const liveVideoModels = models.filter(m => m.mode === 'both');
+  const videoModels = models.filter(m => m.mode === 'video');
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            border: '4px solid #e0e4e8',
+            borderTop: '4px solid #1a3a5c',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 16px'
+          }} />
+          <p style={{ color: '#6b7280' }}>Loading AI Models...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '24px' }}>
+        <div style={{
+          background: '#fee2e2',
+          color: '#dc2626',
+          padding: '16px',
+          borderRadius: '8px',
+          textAlign: 'center'
+        }}>
+          <p>{error}</p>
+          <button
+            onClick={fetchModels}
+            style={{
+              marginTop: '12px',
+              padding: '8px 20px',
+              background: '#1a3a5c',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -232,7 +238,7 @@ const ModelLibrary = () => {
                   justifyContent: 'center',
                   fontSize: '22px'
                 }}>
-                  {model.icon}
+                  {model.icon || '🧠'}
                 </div>
                 <div>
                   <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#1a1a2e', margin: 0 }}>
@@ -242,27 +248,28 @@ const ModelLibrary = () => {
                     fontSize: '11px',
                     padding: '2px 10px',
                     borderRadius: '12px',
-                    background: model.mode === 'Live + Video' ? '#dbeafe' : '#fef3c7',
-                    color: model.mode === 'Live + Video' ? '#1a3a5c' : '#92400e',
+                    background: model.mode === 'both' ? '#dbeafe' : '#fef3c7',
+                    color: model.mode === 'both' ? '#1a3a5c' : '#92400e',
                     fontWeight: '500'
                   }}>
-                    {model.mode === 'Live + Video' ? <FiVideo size={12} style={{ marginRight: '4px' }} /> : <FiUpload size={12} style={{ marginRight: '4px' }} />}
-                    {model.mode}
+                    {model.mode === 'both' ? 'Live + Video' : 'Video Only'}
                   </span>
                 </div>
               </div>
               <button
                 onClick={() => toggleModel(model.id)}
+                disabled={updating === model.id}
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  cursor: 'pointer',
+                  cursor: updating === model.id ? 'not-allowed' : 'pointer',
                   fontSize: '28px',
                   color: model.enabled ? '#22c55e' : '#d1d5db',
-                  padding: '4px'
+                  padding: '4px',
+                  opacity: updating === model.id ? 0.5 : 1
                 }}
               >
-                {model.enabled ? <FiToggleRight /> : <FiToggleLeft />}
+                {updating === model.id ? '⏳' : (model.enabled ? <FiToggleRight /> : <FiToggleLeft />)}
               </button>
             </div>
 
@@ -272,7 +279,7 @@ const ModelLibrary = () => {
               marginTop: '12px',
               marginBottom: '16px'
             }}>
-              {model.description}
+              {model.description || 'AI model for video analytics'}
             </p>
 
             <div style={{
@@ -284,7 +291,7 @@ const ModelLibrary = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#4a4a6a' }}>
                     <span>Confidence Threshold</span>
                     <span style={{ fontWeight: '600', color: '#1a3a5c' }}>
-                      {(model.confidence * 100).toFixed(0)}%
+                      {Math.round((model.confidence_threshold || 0.5) * 100)}%
                     </span>
                   </div>
                   <input
@@ -292,20 +299,20 @@ const ModelLibrary = () => {
                     min="0.1"
                     max="0.95"
                     step="0.05"
-                    value={model.confidence}
+                    value={model.confidence_threshold || 0.5}
                     onChange={(e) => updateConfidence(model.id, e.target.value)}
-                    disabled={!model.enabled}
+                    disabled={!model.enabled || updating === model.id}
                     style={{
                       width: '100%',
                       marginTop: '4px',
                       accentColor: '#1a3a5c',
-                      opacity: model.enabled ? 1 : 0.5
+                      opacity: (model.enabled && updating !== model.id) ? 1 : 0.5
                     }}
                   />
                 </div>
                 <button style={{
                   padding: '6px 14px',
-                  background: model.enabled ? '#f5f7fa' : '#f5f7fa',
+                  background: '#f5f7fa',
                   border: '1px solid #e8edf2',
                   borderRadius: '6px',
                   cursor: 'pointer',

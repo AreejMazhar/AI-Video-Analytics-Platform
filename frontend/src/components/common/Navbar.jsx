@@ -110,7 +110,7 @@ const Navbar = () => {
           }}>
             {user?.name?.charAt(0) || 'A'}
           </div>
-          <div style={{ display: 'none', '@media(min-width:768px)': { display: 'block' } }}>
+          <div style={{ display: 'none', '@media(minWidth:768px)': { display: 'block' } }}>
             <div style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a2e' }}>
               {user?.name || 'Admin'}
             </div>

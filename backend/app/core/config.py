@@ -6,16 +6,21 @@ class Settings(BaseSettings):
     APP_NAME: str = "Invexal AI Video Analytics"
     DEBUG: bool = True
     
-    # Database
-    DATABASE_URL: str = "postgresql://invexal_user:invexal_password@localhost:5432/invexal_db"
+    # Database - This will read from .env
+    DATABASE_URL: str
     
     # Security
-    SECRET_KEY: str = "your-super-secret-key-change-this-in-production"
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     
-    # CORS
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
+    # CORS - Allow frontend
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000"
+    ]
     
     # AI Models
     MODEL_PATH: str = "./models"

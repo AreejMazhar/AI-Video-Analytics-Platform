@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { authService } from '../api/services/authService';
 
 const AuthContext = createContext();
 
@@ -14,46 +15,55 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [error, setError] = useState(null);
 
   // Check for existing session on mount
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
-    if (storedUser) {
+    const token = localStorage.getItem('access_token');
+    
+    console.log('🔍 Checking session...');
+    console.log('  Token exists?', !!token);
+    console.log('  User exists?', !!storedUser);
+    
+    if (storedUser && token) {
       try {
-        setUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        console.log('✅ Session restored:', parsedUser);
       } catch (e) {
+        console.error('❌ Failed to parse user:', e);
         localStorage.removeItem('user');
+        localStorage.removeItem('access_token');
       }
+    } else {
+      console.log('⚠️ No session found');
     }
     setIsChecking(false);
   }, []);
 
   const login = async (email, password) => {
     setLoading(true);
-    
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (email === 'admin@invexal.com' && password === 'admin123') {
-          const userData = {
-            id: 1,
-            name: 'Admin User',
-            email: 'admin@invexal.com',
-            role: 'admin'
-          };
-          setUser(userData);
-          localStorage.setItem('user', JSON.stringify(userData));
-          resolve(userData);
-        } else {
-          reject(new Error('Invalid credentials'));
-        }
-        setLoading(false);
-      }, 1000);
-    });
+    setError(null);
+    console.log('🔑 Attempting login...');
+    try {
+      const response = await authService.login(email, password);
+      console.log('✅ Login successful:', response);
+      setUser(response.user);
+      return response;
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      setError(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const logout = () => {
+    authService.logout();
     setUser(null);
-    localStorage.removeItem('user');
+    console.log('👋 Logged out');
   };
 
   const value = {
@@ -61,6 +71,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     loading,
+    error,
     isChecking,
     isAuthenticated: !!user
   };

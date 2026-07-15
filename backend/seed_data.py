@@ -1,6 +1,7 @@
 from app.core.database import SessionLocal, engine, Base
 from app.models.user import User, UserRole
 from app.models.ai_model import AIModel
+from app.models.camera import Camera
 from app.core.security import get_password_hash
 
 def seed_database():
@@ -15,7 +16,6 @@ def seed_database():
         # Check if admin exists
         existing_admin = db.query(User).filter(User.email == "admin@invexal.com").first()
         if not existing_admin:
-            # Create admin user
             admin = User(
                 name="Admin User",
                 email="admin@invexal.com",
@@ -55,6 +55,43 @@ def seed_database():
                 )
                 db.add(model)
                 print(f"✅ Model created: {model_data['name']}")
+        
+        # Create sample cameras
+        sample_cameras = [
+            {
+                "name": "Main Entrance Camera",
+                "rtsp_url": "rtsp://192.168.1.100:554/stream",
+                "location": "Main Entrance",
+                "status": "online",
+                "is_recording": False,
+                "confidence_threshold": 0.5,
+                "assigned_models": [1, 2]  # Face Detection + Face Recognition
+            },
+            {
+                "name": "Webcam",
+                "rtsp_url": "USB Camera",
+                "location": "Workstation",
+                "status": "online",
+                "is_recording": False,
+                "confidence_threshold": 0.5,
+                "assigned_models": [1]  # Face Detection only
+            }
+        ]
+        
+        for cam_data in sample_cameras:
+            existing = db.query(Camera).filter(Camera.name == cam_data["name"]).first()
+            if not existing:
+                camera = Camera(
+                    name=cam_data["name"],
+                    rtsp_url=cam_data["rtsp_url"],
+                    location=cam_data["location"],
+                    status=cam_data["status"],
+                    is_recording=cam_data["is_recording"],
+                    confidence_threshold=cam_data["confidence_threshold"],
+                    assigned_models=cam_data["assigned_models"]
+                )
+                db.add(camera)
+                print(f"✅ Camera created: {cam_data['name']}")
         
         db.commit()
         print("\n✅ Database seeded successfully!")

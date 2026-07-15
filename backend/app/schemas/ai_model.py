@@ -1,5 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
+from datetime import datetime
 
 class AIModelBase(BaseModel):
     name: str
@@ -20,8 +21,7 @@ class AIModelUpdate(BaseModel):
 
 class AIModelResponse(AIModelBase):
     id: int
-    created_at: str
-    updated_at: str
+    created_at: datetime  # Keep as datetime
+    updated_at: datetime  # Keep as datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)  # This handles the conversion

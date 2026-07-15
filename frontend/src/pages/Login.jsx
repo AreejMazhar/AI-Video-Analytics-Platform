@@ -5,23 +5,19 @@ import { useNavigate } from 'react-router-dom';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const [localError, setLocalError] = useState('');
+  const { login, loading, error } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
+    setLocalError('');
 
     try {
       await login(email, password);
       navigate('/dashboard');
     } catch (err) {
-      setError('Invalid email or password');
-    } finally {
-      setLoading(false);
+      setLocalError(err.message || 'Login failed. Please try again.');
     }
   };
 
@@ -48,7 +44,7 @@ const Login = () => {
           <p style={{ color: '#6b7280' }}>Video Analytics Platform</p>
         </div>
 
-        {error && (
+        {(localError || error) && (
           <div style={{
             background: '#fee2e2',
             color: '#dc2626',
@@ -57,7 +53,7 @@ const Login = () => {
             marginBottom: '16px',
             fontSize: '14px'
           }}>
-            {error}
+            {localError || error}
           </div>
         )}
 
@@ -116,7 +112,8 @@ const Login = () => {
               borderRadius: '8px',
               fontSize: '16px',
               fontWeight: '500',
-              cursor: 'pointer',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1,
               transition: 'background 0.2s'
             }}
             onMouseEnter={(e) => e.target.style.background = '#2a5a8c'}
