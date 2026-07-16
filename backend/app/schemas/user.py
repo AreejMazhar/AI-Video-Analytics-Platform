@@ -23,6 +23,13 @@ class UserResponse(UserBase):
     
     model_config = ConfigDict(from_attributes=True)
 
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = None
+
 class Token(BaseModel):
     access_token: str
     token_type: str

@@ -19,7 +19,7 @@ const Sidebar = () => {
   const menuItems = [
     { path: '/dashboard', icon: FiHome, label: 'Dashboard' },
     { path: '/live-view', icon: FiVideo, label: 'Live View' },
-    { path: '/cameras', icon: FiCamera, label: 'Cameras' },
+    { path: '/cameras', icon: FiCamera, label: 'Camera Management' },
     { path: '/models', icon: FiCpu, label: 'AI Models' },
     { path: '/video-processing', icon: FiVideo, label: 'Video Processing' },
     { path: '/analytics', icon: FiBarChart2, label: 'Analytics' },
