@@ -154,7 +154,7 @@ async def download_report(
         return StreamingResponse(
             iter([content]),
             media_type=media_type,
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
     except HTTPException:
         raise

@@ -4,23 +4,11 @@ import Navbar from './common/Navbar';
 
 const Layout = ({ children }) => {
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f0f5fa' }}>
+    <div className="app-container">
       <Sidebar />
-      <div style={{
-        flex: 1,
-        marginLeft: '250px',
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: '100vh'
-      }}>
+      <div className="main-content">
         <Navbar />
-        <main style={{
-          padding: '24px',
-          flex: 1,
-          maxWidth: '1400px',
-          margin: '0 auto',
-          width: '100%'
-        }}>
+        <main className="page-content">
           {children}
         </main>
       </div>

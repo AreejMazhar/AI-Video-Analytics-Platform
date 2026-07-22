@@ -39,7 +39,7 @@ export const reportService = {
   },
 
   // Download report
-  async downloadReport(reportId) {
+  async downloadReport(reportId, reportFormat = 'pdf') {
     try {
       console.log(`📥 Downloading report ${reportId}`);
       const response = await apiClient.get(`/reports/${reportId}/download`, {
@@ -47,24 +47,29 @@ export const reportService = {
         timeout: 60000
       });
       
+      // Determine extension: csv stays .csv, everything else is .html (styled HTML report)
+      const ext = reportFormat === 'csv' ? 'csv' : 'html';
+      let filename = `report_${reportId}.${ext}`;
+
+      // Try to read Content-Disposition header (requires CORS expose_headers)
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename=[\"']?([^\"';\s]+)[\"']?/);
+        if (match && match[1]) filename = match[1];
+      }
+
       // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      const contentDisposition = response.headers['content-disposition'];
-      let filename = `report_${reportId}.csv`;
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename=(.+)/);
-        if (match) filename = match[1];
-      }
       link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
       
-      console.log('✅ Report downloaded successfully');
-      return true;
+      console.log(`✅ Report downloaded as: ${filename}`);
+      return { filename };
     } catch (error) {
       console.error('❌ Failed to download report:', error);
       throw error;

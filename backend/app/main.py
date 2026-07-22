@@ -28,6 +28,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],              # Allow all HTTP methods (GET, POST, PUT, DELETE, etc.)
     allow_headers=["*"],              # Allow all headers
+    expose_headers=["Content-Disposition"],  # Expose so frontend can read filename
 )
 
 # Include API routes

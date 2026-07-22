@@ -1,37 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  FiFileText, FiDownload, FiCalendar, FiFilter,
-  FiPieChart, FiBarChart2, FiTrendingUp,
-  FiChevronRight, FiClock, FiCheckCircle, FiXCircle,
-  FiPlus, FiTrash2
+import {
+  FiFileText, FiDownload, FiPlus, FiTrash2,
+  FiClock, FiCheckCircle, FiXCircle, FiX, FiAlertCircle
 } from 'react-icons/fi';
 import { reportService } from '../api/services/reportService';
+import Modal from '../components/common/Modal';
 
 const Reports = () => {
   const [reports, setReports] = useState([]);
-  const [stats, setStats] = useState({
-    total: 0,
-    generated: 0,
-    pending: 0,
-    failed: 0
-  });
+  const [stats, setStats] = useState({ total: 0, generated: 0, pending: 0, failed: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [downloading, setDownloading] = useState(null);
+  const [showForm, setShowForm] = useState(false);
   
-  // Form state for generating report
-  const [formData, setFormData] = useState({
-    name: '',
-    report_type: 'daily',
-    date_range: { start: '', end: '' },
-    format: 'csv'
-  });
-  const [showGenerateForm, setShowGenerateForm] = useState(false);
+  // Custom Modal notification / confirmation states
+  const [modalConfig, setModalConfig] = useState({ isOpen: false, type: 'info', title: '', content: null, onConfirm: null });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const [formData, setFormData] = useState({
+    name: '', report_type: 'daily',
+    date_range: { start: '', end: '' }, format: 'pdf'
+  });
+
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -43,525 +35,178 @@ const Reports = () => {
       ]);
       setReports(reportsData);
       setStats(statsData);
-      console.log('✅ Reports data loaded:', reportsData.length);
-    } catch (err) {
-      console.error('❌ Error fetching reports:', err);
-      setError('Failed to load reports. Please refresh the page.');
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError('Failed to load reports.'); }
+    finally { setLoading(false); }
   };
 
-  const handleFormChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-  };
+  const handleFormChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleDateChange = (e) => setFormData({ ...formData, date_range: { ...formData.date_range, [e.target.name]: e.target.value } });
 
-  const handleDateChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      date_range: { ...formData.date_range, [name]: value }
-    });
-  };
-
-  const handleGenerateReport = async (e) => {
+  const handleGenerate = async (e) => {
     e.preventDefault();
     setGenerating(true);
     try {
-      // Ensure date_range has proper values or use null
-      const reportData = {
-        name: formData.name,
-        report_type: formData.report_type,
-        format: formData.format,
+      const payload = {
+        name: formData.name, report_type: formData.report_type, format: formData.format,
         date_range: formData.date_range.start && formData.date_range.end ? formData.date_range : null
       };
-      
-      const newReport = await reportService.generateReport(reportData);
+      const newReport = await reportService.generateReport(payload);
       setReports([newReport, ...reports]);
-      setShowGenerateForm(false);
-      setFormData({
-        name: '',
-        report_type: 'daily',
-        date_range: { start: '', end: '' },
-        format: 'csv'
+      setShowForm(false);
+      setFormData({ name: '', report_type: 'daily', date_range: { start: '', end: '' }, format: 'pdf' });
+      const s = await reportService.getStats();
+      setStats(s);
+
+      setModalConfig({
+        isOpen: true, type: 'success',
+        title: 'Report Generated',
+        content: `Your report "${newReport.name}" has been generated successfully and is ready for download.`
       });
-      const statsData = await reportService.getStats();
-      setStats(statsData);
-      alert('✅ Report generated successfully!');
-    } catch (err) {
-      alert('❌ Failed to generate report. Please try again.');
-    } finally {
-      setGenerating(false);
+    } catch {
+      setModalConfig({
+        isOpen: true, type: 'danger',
+        title: 'Generation Failed',
+        content: 'Failed to generate report. Please verify parameters and try again.'
+      });
     }
+    finally { setGenerating(false); }
   };
 
-  const handleDownload = async (reportId) => {
-    setDownloading(reportId);
+  const handleDownload = async (r) => {
+    setDownloading(r.id);
     try {
-      await reportService.downloadReport(reportId);
-    } catch (err) {
-      alert('❌ Failed to download report. Please try again.');
-    } finally {
-      setDownloading(null);
+      const result = await reportService.downloadReport(r.id, r.format);
+      const ext = r.format === 'csv' ? 'csv' : 'html';
+      const displayName = result?.filename || `${r.name}.${ext}`;
+      setModalConfig({
+        isOpen: true, type: 'success',
+        title: 'Download Started',
+        content: `"${displayName}" is being downloaded. Open it in your browser for a full styled report.`
+      });
     }
-  };
-
-  const handleDelete = async (reportId) => {
-    if (!window.confirm('Are you sure you want to delete this report?')) return;
-    try {
-      await reportService.deleteReport(reportId);
-      setReports(reports.filter(r => r.id !== reportId));
-      const statsData = await reportService.getStats();
-      setStats(statsData);
-      alert('✅ Report deleted successfully!');
-    } catch (err) {
-      alert('❌ Failed to delete report. Please try again.');
+    catch {
+      setModalConfig({
+        isOpen: true, type: 'danger',
+        title: 'Download Failed',
+        content: 'Could not download the requested report file.'
+      });
     }
+    finally { setDownloading(null); }
   };
 
-  const getStatusColor = (status) => {
-    return status === 'generated' ? '#22c55e' : status === 'pending' ? '#f59e0b' : '#ef4444';
+  const handleDelete = (r) => {
+    setModalConfig({
+      isOpen: true, type: 'confirm',
+      title: 'Delete Report?',
+      content: `Are you sure you want to delete "${r.name}"? This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await reportService.deleteReport(r.id);
+          setReports(prev => prev.filter(x => x.id !== r.id));
+          const s = await reportService.getStats();
+          setStats(s);
+        } catch {
+          setModalConfig({
+            isOpen: true, type: 'danger',
+            title: 'Delete Failed',
+            content: 'Failed to delete report.'
+          });
+        }
+      }
+    });
   };
 
-  const getStatusIcon = (status) => {
-    return status === 'generated' ? <FiCheckCircle /> : status === 'pending' ? <FiClock /> : <FiXCircle />;
-  };
+  const getReportIcon = (type) => ({ daily: '📊', weekly: '📈', monthly: '📋', custom: '📑' }[type] || '📄');
 
-  const getStatusLabel = (status) => {
-    return status === 'generated' ? 'Ready' : status === 'pending' ? 'Generating...' : 'Failed';
-  };
-
-  const getReportIcon = (type) => {
-    const icons = {
-      daily: '📊',
-      weekly: '📈',
-      monthly: '📋',
-      custom: '📑'
-    };
-    return icons[type] || '📄';
-  };
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            border: '4px solid #e0e4e8',
-            borderTop: '4px solid #1a3a5c',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto 16px'
-          }} />
-          <p style={{ color: '#6b7280' }}>Loading reports...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ padding: '24px' }}>
-        <div style={{
-          background: '#fee2e2',
-          color: '#dc2626',
-          padding: '16px',
-          borderRadius: '8px',
-          textAlign: 'center'
-        }}>
-          <p>{error}</p>
-          <button
-            onClick={fetchData}
-            style={{
-              marginTop: '12px',
-              padding: '8px 20px',
-              background: '#1a3a5c',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="loading-screen"><div className="spinner" /><p>Loading reports…</p></div>;
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: '16px',
-        marginBottom: '28px'
-      }}>
+    <div className="animate-fade-in">
+      {/* Page Header */}
+      <div className="page-header flex-between">
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1a3a5c', marginBottom: '4px' }}>
-            Reports
-          </h1>
-          <p style={{ color: '#6b7280', fontSize: '14px' }}>
-            Generate and download analytics reports
-          </p>
+          <h1 className="page-title">Reports</h1>
+          <p className="page-subtitle">Generate, download, and manage analytics reports</p>
         </div>
-        <button
-          onClick={() => setShowGenerateForm(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '10px 20px',
-            background: '#1a3a5c',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '500'
-          }}
-        >
-          <FiPlus size={18} />
-          Generate New Report
+        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+          <FiPlus size={15} /> Generate Report
         </button>
       </div>
 
-      {/* Summary Stats */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-        gap: '12px',
-        marginBottom: '24px'
-      }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '16px 20px',
-          border: '1px solid #e8edf2',
-          textAlign: 'center'
-        }}>
-          <p style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Total Reports</p>
-          <p style={{ fontSize: '24px', fontWeight: '700', color: '#1a3a5c', margin: 0 }}>
-            {stats.total}
-          </p>
-        </div>
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '16px 20px',
-          border: '1px solid #e8edf2',
-          textAlign: 'center'
-        }}>
-          <p style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Generated</p>
-          <p style={{ fontSize: '24px', fontWeight: '700', color: '#22c55e', margin: 0 }}>
-            {stats.generated}
-          </p>
-        </div>
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '16px 20px',
-          border: '1px solid #e8edf2',
-          textAlign: 'center'
-        }}>
-          <p style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Pending</p>
-          <p style={{ fontSize: '24px', fontWeight: '700', color: '#f59e0b', margin: 0 }}>
-            {stats.pending}
-          </p>
-        </div>
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '16px 20px',
-          border: '1px solid #e8edf2',
-          textAlign: 'center'
-        }}>
-          <p style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Failed</p>
-          <p style={{ fontSize: '24px', fontWeight: '700', color: '#ef4444', margin: 0 }}>
-            {stats.failed}
-          </p>
-        </div>
-      </div>
-
-      {/* Generate Report Form Modal */}
-      {showGenerateForm && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 2000
-        }}>
-          <div style={{
-            background: 'white',
-            borderRadius: '16px',
-            padding: '32px',
-            width: '100%',
-            maxWidth: '500px',
-            maxHeight: '90vh',
-            overflowY: 'auto'
-          }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#1a3a5c', marginBottom: '20px' }}>
-              Generate Report
-            </h2>
-            <form onSubmit={handleGenerateReport}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
-                  Report Name *
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleFormChange}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    fontSize: '14px'
-                  }}
-                  placeholder="e.g., Weekly Detection Report"
-                  required
-                />
-              </div>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
-                  Report Type *
-                </label>
-                <select
-                  name="report_type"
-                  value={formData.report_type}
-                  onChange={handleFormChange}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    fontSize: '14px'
-                  }}
-                >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
-                  Date Range
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <input
-                    type="date"
-                    name="start"
-                    value={formData.date_range.start}
-                    onChange={handleDateChange}
-                    style={{
-                      padding: '10px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      fontSize: '14px'
-                    }}
-                  />
-                  <input
-                    type="date"
-                    name="end"
-                    value={formData.date_range.end}
-                    onChange={handleDateChange}
-                    style={{
-                      padding: '10px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      fontSize: '14px'
-                    }}
-                  />
-                </div>
-              </div>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
-                  Format *
-                </label>
-                <select
-                  name="format"
-                  value={formData.format}
-                  onChange={handleFormChange}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    fontSize: '14px'
-                  }}
-                >
-                  <option value="csv">CSV</option>
-                  <option value="pdf">PDF (HTML)</option>
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowGenerateForm(false);
-                    setFormData({
-                      name: '',
-                      report_type: 'daily',
-                      date_range: { start: '', end: '' },
-                      format: 'csv'
-                    });
-                  }}
-                  style={{
-                    padding: '10px 24px',
-                    background: '#f5f7fa',
-                    border: '1px solid #e8edf2',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    color: '#4a4a6a'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={generating}
-                  style={{
-                    padding: '10px 24px',
-                    background: '#1a3a5c',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: generating ? 'not-allowed' : 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    opacity: generating ? 0.6 : 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                >
-                  {generating ? 'Generating...' : <><FiFileText /> Generate</>}
-                </button>
-              </div>
-            </form>
-          </div>
+      {error && (
+        <div className="error-banner mb-16">
+          <FiAlertCircle size={18} /> {error}
+          <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setError(null)}><FiX size={14} /></button>
         </div>
       )}
 
+      {/* Stats */}
+      <div className="grid-4 mb-24">
+        {[
+          { label: 'Total Reports', value: stats.total,     color: '#2563eb', bg: 'rgba(37,99,235,0.1)' },
+          { label: 'Ready',         value: stats.generated, color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+          { label: 'Pending',       value: stats.pending,   color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+          { label: 'Failed',        value: stats.failed,    color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+        ].map((s, i) => (
+          <div key={i} className="card" style={{ textAlign: 'center', padding: '18px 20px' }}>
+            <div style={{ width: 40, height: 40, borderRadius: '10px', background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
+              <FiFileText size={18} color={s.color} />
+            </div>
+            <p style={{ fontSize: '24px', fontWeight: 700, color: s.color, margin: 0 }}>{s.value}</p>
+            <p className="text-sm text-muted" style={{ marginTop: '4px' }}>{s.label}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Reports List */}
-      <div style={{
-        background: 'white',
-        borderRadius: '12px',
-        border: '1px solid #e8edf2',
-        overflow: 'hidden'
-      }}>
+      <div className="table-container">
         {reports.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '60px 20px',
-            color: '#6b7280'
-          }}>
-            <FiFileText size={48} style={{ marginBottom: '12px', opacity: 0.5 }} />
-            <p style={{ fontSize: '16px' }}>No reports generated yet</p>
-            <p style={{ fontSize: '13px', color: '#9ca3af' }}>Click "Generate New Report" to get started</p>
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>📄</div>
+            <p style={{ fontWeight: 600 }}>No reports yet</p>
+            <p className="text-sm">Click "Generate Report" to create your first report</p>
           </div>
         ) : (
-          reports.map((report, index) => (
-            <div key={report.id} style={{
-              padding: '16px 20px',
-              borderBottom: index < reports.length - 1 ? '1px solid #f0f2f5' : 'none',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '12px',
-              transition: 'background 0.2s'
+          reports.map((r, i) => (
+            <div key={r.id} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '16px 20px', flexWrap: 'wrap', gap: '12px',
+              borderBottom: i < reports.length - 1 ? '1px solid var(--border)' : 'none',
+              transition: 'background 0.15s'
             }}
-            onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
-            onMouseLeave={(e) => e.target.style.background = 'transparent'}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--background)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '10px',
-                  background: '#dbeafe',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '22px'
-                }}>
-                  {getReportIcon(report.report_type)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ width: 44, height: 44, borderRadius: '10px', background: 'rgba(37,99,235,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', flexShrink: 0 }}>
+                  {getReportIcon(r.report_type)}
                 </div>
                 <div>
-                  <p style={{ fontSize: '14px', fontWeight: '500', color: '#1a1a2e', margin: 0 }}>
-                    {report.name}
-                  </p>
-                  <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                    <span>{report.report_type?.charAt(0).toUpperCase() + report.report_type?.slice(1) || 'Custom'}</span>
-                    <span>{report.format?.toUpperCase() || 'CSV'}</span>
-                    <span>{new Date(report.created_at).toLocaleDateString()}</span>
+                  <p style={{ fontWeight: 600, fontSize: '14px', margin: 0 }}>{r.name}</p>
+                  <div className="flex" style={{ gap: '14px', marginTop: '4px' }}>
+                    <span className="badge badge-muted" style={{ textTransform: 'capitalize' }}>{r.report_type}</span>
+                    <span className="badge badge-muted">{r.format?.toUpperCase()}</span>
+                    <span className="text-xs text-muted">{new Date(r.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  fontSize: '13px',
-                  color: getStatusColor(report.status),
-                  fontWeight: '500'
-                }}>
-                  {getStatusIcon(report.status)}
-                  {getStatusLabel(report.status)}
-                </span>
-                {report.status === 'generated' && (
-                  <button                    onClick={() => handleDownload(report.id)}
-                    disabled={downloading === report.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '6px 14px',
-                      background: '#1a3a5c',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: downloading === report.id ? 'not-allowed' : 'pointer',
-                      fontSize: '13px',
-                      opacity: downloading === report.id ? 0.6 : 1
-                    }}
-                  >
-                    <FiDownload size={14} />
-                    {downloading === report.id ? 'Downloading...' : 'Download'}
+              <div className="flex" style={{ gap: '10px', alignItems: 'center' }}>
+                {r.status === 'generated' && (
+                  <span className="status-dot status-online text-sm">Ready</span>
+                )}
+                {r.status === 'pending' && (
+                  <span className="badge badge-warning"><FiClock size={11} style={{ marginRight: 4 }} />Generating</span>
+                )}
+                {r.status === 'failed' && (
+                  <span className="badge badge-danger"><FiXCircle size={11} style={{ marginRight: 4 }} />Failed</span>
+                )}
+                {r.status === 'generated' && (
+                  <button className="btn btn-primary btn-sm" onClick={() => handleDownload(r)} disabled={downloading === r.id}>
+                    <FiDownload size={13} /> {downloading === r.id ? '…' : 'Download'}
                   </button>
                 )}
-                {report.status === 'pending' && (
-                  <span style={{ fontSize: '13px', color: '#6b7280' }}>
-                    <FiClock /> Processing...
-                  </span>
-                )}
-                <button
-                  onClick={() => handleDelete(report.id)}
-                  style={{
-                    padding: '6px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#ef4444',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <FiTrash2 size={16} />
+                <button className="btn btn-sm" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.2)' }} onClick={() => handleDelete(r)}>
+                  <FiTrash2 size={13} />
                 </button>
               </div>
             </div>
@@ -569,12 +214,82 @@ const Reports = () => {
         )}
       </div>
 
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      {/* Generate Report Modal — flex-start so tall viewports never clip top */}
+      {showForm && (
+        <div
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+            zIndex: 2000, padding: '40px 24px', overflowY: 'auto'
+          }}
+          onClick={() => setShowForm(false)}
+        >
+          <div
+            style={{
+              background: 'var(--surface)', borderRadius: '20px',
+              padding: '28px 32px', width: '100%', maxWidth: '460px',
+              animation: 'fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              position: 'relative'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex-between mb-20">
+              <h2 style={{ fontSize: '19px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Generate New Report</h2>
+              <button className="navbar-icon-btn" onClick={() => setShowForm(false)}><FiX size={17} /></button>
+            </div>
+            <form onSubmit={handleGenerate}>
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <label className="form-label">Report Name *</label>
+                <input className="form-input" type="text" name="name" value={formData.name} onChange={handleFormChange} placeholder="Weekly Detection Report" required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <label className="form-label">Report Type *</label>
+                <select className="form-input form-select" name="report_type" value={formData.report_type} onChange={handleFormChange}>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <label className="form-label">Date Range (optional)</label>
+                <div className="grid-2" style={{ gap: '10px' }}>
+                  <input className="form-input" type="date" name="start" value={formData.date_range.start} onChange={handleDateChange} />
+                  <input className="form-input" type="date" name="end"   value={formData.date_range.end}   onChange={handleDateChange} />
+                </div>
+              </div>
+              <div className="form-group" style={{ marginBottom: '20px' }}>
+                <label className="form-label">Format *</label>
+                <select className="form-input form-select" name="format" value={formData.format} onChange={handleFormChange}>
+                  <option value="pdf">PDF / HTML Report (.html)</option>
+                  <option value="csv">CSV Spreadsheet (.csv)</option>
+                </select>
+              </div>
+              <div className="flex" style={{ gap: '10px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={generating}>
+                  <FiFileText size={14} /> {generating ? 'Generating…' : 'Generate Report'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reusable Custom Modal for Alert / Confirmations */}
+      <Modal
+        isOpen={modalConfig.isOpen}
+        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+        type={modalConfig.type}
+        title={modalConfig.title}
+        onConfirm={modalConfig.onConfirm}
+      >
+        {modalConfig.content}
+      </Modal>
+
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }`}</style>
     </div>
   );
 };

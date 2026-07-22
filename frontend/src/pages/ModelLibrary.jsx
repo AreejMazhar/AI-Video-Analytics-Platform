@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { FiToggleLeft, FiToggleRight, FiInfo, FiVideo, FiUpload } from 'react-icons/fi';
+import {
+  FiCpu, FiToggleLeft, FiToggleRight, FiInfo, FiVideo,
+  FiUpload, FiRefreshCw, FiAlertCircle, FiCheck
+} from 'react-icons/fi';
 import { modelService } from '../api/services/modelService';
 
 const ModelLibrary = () => {
@@ -7,11 +10,9 @@ const ModelLibrary = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [updating, setUpdating] = useState(null);
+  const [filter, setFilter] = useState('all');
 
-  // Fetch models from backend on mount
-  useEffect(() => {
-    fetchModels();
-  }, []);
+  useEffect(() => { fetchModels(); }, []);
 
   const fetchModels = async () => {
     setLoading(true);
@@ -20,8 +21,7 @@ const ModelLibrary = () => {
       const data = await modelService.getAllModels();
       setModels(data);
     } catch (err) {
-      setError('Failed to load models. Please refresh the page.');
-      console.error(err);
+      setError('Failed to load models. Please refresh.');
     } finally {
       setLoading(false);
     }
@@ -30,23 +30,13 @@ const ModelLibrary = () => {
   const toggleModel = async (id) => {
     const modelToUpdate = models.find(m => m.id === id);
     if (!modelToUpdate) return;
-
-    // Optimistically update UI
-    setModels(models.map(model =>
-      model.id === id ? { ...model, enabled: !model.enabled } : model
-    ));
+    setModels(prev => prev.map(m => m.id === id ? { ...m, enabled: !m.enabled } : m));
     setUpdating(id);
-
     try {
-      await modelService.updateModel(id, {
-        enabled: !modelToUpdate.enabled
-      });
-    } catch (err) {
-      // Revert if failed
-      setModels(models.map(model =>
-        model.id === id ? { ...model, enabled: modelToUpdate.enabled } : model
-      ));
-      setError('Failed to update model. Please try again.');
+      await modelService.updateModel(id, { enabled: !modelToUpdate.enabled });
+    } catch {
+      setModels(prev => prev.map(m => m.id === id ? { ...m, enabled: modelToUpdate.enabled } : m));
+      setError('Failed to update model.');
     } finally {
       setUpdating(null);
     }
@@ -56,278 +46,194 @@ const ModelLibrary = () => {
     const threshold = parseFloat(value);
     const modelToUpdate = models.find(m => m.id === id);
     if (!modelToUpdate) return;
-
-    // Update local state
-    setModels(models.map(model =>
-      model.id === id ? { ...model, confidence_threshold: threshold } : model
-    ));
-
+    setModels(prev => prev.map(m => m.id === id ? { ...m, confidence_threshold: threshold } : m));
     try {
-      await modelService.updateModel(id, {
-        confidence_threshold: threshold
-      });
-    } catch (err) {
-      // Revert on failure
-      setModels(models.map(model =>
-        model.id === id ? { ...model, confidence_threshold: modelToUpdate.confidence_threshold } : model
-      ));
-      setError('Failed to update confidence threshold.');
+      await modelService.updateModel(id, { confidence_threshold: threshold });
+    } catch {
+      setModels(prev => prev.map(m => m.id === id ? { ...m, confidence_threshold: modelToUpdate.confidence_threshold } : m));
     }
   };
 
-  const liveVideoModels = models.filter(m => m.mode === 'both');
-  const videoModels = models.filter(m => m.mode === 'video');
+  const getModelIcon = (name = '') => {
+    const n = name.toLowerCase();
+    if (n.includes('face')) return '👤';
+    if (n.includes('vehicle') || n.includes('license')) return '🚗';
+    if (n.includes('ppe') || n.includes('safety')) return '⛑️';
+    if (n.includes('fire') || n.includes('smoke')) return '🔥';
+    if (n.includes('fall')) return '⚠️';
+    if (n.includes('crowd')) return '👥';
+    return '🧠';
+  };
+
+  const filteredModels = models.filter(m => {
+    if (filter === 'enabled') return m.enabled;
+    if (filter === 'disabled') return !m.enabled;
+    if (filter === 'live') return m.mode === 'both';
+    if (filter === 'video') return m.mode === 'video';
+    return true;
+  });
+
+  const enabledCount = models.filter(m => m.enabled).length;
+  const liveCount = models.filter(m => m.mode === 'both').length;
+  const videoCount = models.filter(m => m.mode === 'video').length;
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            border: '4px solid #e0e4e8',
-            borderTop: '4px solid #1a3a5c',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto 16px'
-          }} />
-          <p style={{ color: '#6b7280' }}>Loading AI Models...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ padding: '24px' }}>
-        <div style={{
-          background: '#fee2e2',
-          color: '#dc2626',
-          padding: '16px',
-          borderRadius: '8px',
-          textAlign: 'center'
-        }}>
-          <p>{error}</p>
-          <button
-            onClick={fetchModels}
-            style={{
-              marginTop: '12px',
-              padding: '8px 20px',
-              background: '#1a3a5c',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-          >
-            Retry
-          </button>
-        </div>
+      <div className="loading-screen">
+        <div className="spinner" />
+        <p>Loading AI Models...</p>
       </div>
     );
   }
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1a3a5c', marginBottom: '4px' }}>
-          AI Model Library
-        </h1>
-        <p style={{ color: '#6b7280', fontSize: '14px' }}>
-          Enable or disable AI models and configure their settings
-        </p>
+    <div className="animate-fade-in">
+      {/* Page Header */}
+      <div className="page-header flex-between">
+        <div>
+          <h1 className="page-title">AI Model Library</h1>
+          <p className="page-subtitle">Enable, disable, and configure your AI detection models</p>
+        </div>
+        <button className="btn btn-secondary" onClick={fetchModels}>
+          <FiRefreshCw size={14} /> Refresh
+        </button>
       </div>
 
-      {/* Mode Info Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '16px',
-        marginBottom: '24px'
-      }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '16px 20px',
-          border: '1px solid #e8edf2',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '16px'
-        }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: '#dbeafe',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '24px'
-          }}>
-            <FiVideo size={24} color="#1a3a5c" />
-          </div>
-          <div>
-            <p style={{ fontSize: '14px', fontWeight: '600', color: '#1a3a5c', margin: 0 }}>
-              Live + Video Models ({liveVideoModels.length})
-            </p>
-            <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>
-              Face Detection & Recognition - Real-time + Video
-            </p>
-          </div>
+      {error && (
+        <div className="error-banner mb-16">
+          <FiAlertCircle size={18} /> {error}
         </div>
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '16px 20px',
-          border: '1px solid #e8edf2',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '16px'
-        }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: '#fef3c7',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '24px'
-          }}>
-            <FiUpload size={24} color="#f59e0b" />
-          </div>
-          <div>
-            <p style={{ fontSize: '14px', fontWeight: '600', color: '#1a3a5c', margin: 0 }}>
-              Video Processing Models ({videoModels.length})
-            </p>
-            <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>
-              Upload videos to process with these models
-            </p>
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* Model Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
-        gap: '16px'
-      }}>
-        {models.map(model => (
-          <div key={model.id} style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '20px',
-            border: `1px solid ${model.enabled ? '#22c55e' : '#e8edf2'}`,
-            transition: 'all 0.2s',
-            opacity: model.enabled ? 1 : 0.7
-          }}
-          onMouseEnter={(e) => e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'}
-          onMouseLeave={(e) => e.target.style.boxShadow = 'none'}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '10px',
-                  background: model.enabled ? '#dbeafe' : '#f5f7fa',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '22px'
-                }}>
-                  {model.icon || '🧠'}
-                </div>
-                <div>
-                  <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#1a1a2e', margin: 0 }}>
-                    {model.name}
-                  </h4>
-                  <span style={{
-                    fontSize: '11px',
-                    padding: '2px 10px',
-                    borderRadius: '12px',
-                    background: model.mode === 'both' ? '#dbeafe' : '#fef3c7',
-                    color: model.mode === 'both' ? '#1a3a5c' : '#92400e',
-                    fontWeight: '500'
-                  }}>
-                    {model.mode === 'both' ? 'Live + Video' : 'Video Only'}
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => toggleModel(model.id)}
-                disabled={updating === model.id}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: updating === model.id ? 'not-allowed' : 'pointer',
-                  fontSize: '28px',
-                  color: model.enabled ? '#22c55e' : '#d1d5db',
-                  padding: '4px',
-                  opacity: updating === model.id ? 0.5 : 1
-                }}
-              >
-                {updating === model.id ? '⏳' : (model.enabled ? <FiToggleRight /> : <FiToggleLeft />)}
-              </button>
+      {/* Summary Cards */}
+      <div className="grid-4 mb-28">
+        {[
+          { label: 'Total Models', value: models.length, icon: FiCpu, color: '#2563eb', bg: 'rgba(37,99,235,0.1)' },
+          { label: 'Active Models', value: enabledCount, icon: FiCheck, color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+          { label: 'Live Stream', value: liveCount, icon: FiVideo, color: '#06b6d4', bg: 'rgba(6,182,212,0.1)' },
+          { label: 'Video Only', value: videoCount, icon: FiUpload, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+        ].map((s, i) => (
+          <div key={i} className="card" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 20px' }}>
+            <div style={{ width: 44, height: 44, borderRadius: '12px', background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <s.icon size={20} color={s.color} />
             </div>
-
-            <p style={{
-              fontSize: '13px',
-              color: '#6b7280',
-              marginTop: '12px',
-              marginBottom: '16px'
-            }}>
-              {model.description || 'AI model for video analytics'}
-            </p>
-
-            <div style={{
-              paddingTop: '12px',
-              borderTop: '1px solid #f0f2f5'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ flex: 1, marginRight: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#4a4a6a' }}>
-                    <span>Confidence Threshold</span>
-                    <span style={{ fontWeight: '600', color: '#1a3a5c' }}>
-                      {Math.round((model.confidence_threshold || 0.5) * 100)}%
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0.1"
-                    max="0.95"
-                    step="0.05"
-                    value={model.confidence_threshold || 0.5}
-                    onChange={(e) => updateConfidence(model.id, e.target.value)}
-                    disabled={!model.enabled || updating === model.id}
-                    style={{
-                      width: '100%',
-                      marginTop: '4px',
-                      accentColor: '#1a3a5c',
-                      opacity: (model.enabled && updating !== model.id) ? 1 : 0.5
-                    }}
-                  />
-                </div>
-                <button style={{
-                  padding: '6px 14px',
-                  background: '#f5f7fa',
-                  border: '1px solid #e8edf2',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  color: '#4a4a6a',
-                  whiteSpace: 'nowrap'
-                }}>
-                  <FiInfo size={14} style={{ marginRight: '4px' }} />
-                  Details
-                </button>
-              </div>
+            <div>
+              <p className="stat-label" style={{ marginBottom: 2 }}>{s.label}</p>
+              <p style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>{s.value}</p>
             </div>
           </div>
         ))}
       </div>
+
+      {/* Filter Tabs */}
+      <div className="flex mb-24" style={{ gap: '8px', flexWrap: 'wrap' }}>
+        {[
+          { key: 'all', label: `All (${models.length})` },
+          { key: 'enabled', label: `Active (${enabledCount})` },
+          { key: 'disabled', label: `Disabled (${models.length - enabledCount})` },
+          { key: 'live', label: `Live Stream (${liveCount})` },
+          { key: 'video', label: `Video Only (${videoCount})` },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setFilter(tab.key)}
+            className={filter === tab.key ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Model Cards Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
+        {filteredModels.map(model => (
+          <div key={model.id} className="card" style={{
+            borderColor: model.enabled ? 'rgba(16,185,129,0.3)' : 'var(--border)',
+            transition: 'all 0.2s',
+            opacity: model.enabled ? 1 : 0.8
+          }}>
+            {/* Model Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: 46, height: 46, borderRadius: '12px',
+                  background: model.enabled ? 'rgba(37,99,235,0.1)' : 'var(--surface-hover)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '22px', flexShrink: 0
+                }}>
+                  {getModelIcon(model.name)}
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '14.5px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                    {model.name}
+                  </h4>
+                  <span className={`badge ${model.mode === 'both' ? 'badge-primary' : 'badge-warning'}`} style={{ marginTop: '4px' }}>
+                    {model.mode === 'both' ? '📡 Live + Video' : '📹 Video Only'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Toggle */}
+              <button
+                onClick={() => toggleModel(model.id)}
+                disabled={updating === model.id}
+                style={{ background: 'none', border: 'none', cursor: updating === model.id ? 'not-allowed' : 'pointer', padding: '4px', opacity: updating === model.id ? 0.5 : 1 }}
+              >
+                {updating === model.id
+                  ? <FiRefreshCw size={24} color="var(--text-muted)" style={{ animation: 'spin 1s linear infinite' }} />
+                  : model.enabled
+                    ? <FiToggleRight size={30} color="var(--success)" />
+                    : <FiToggleLeft size={30} color="var(--text-muted)" />
+                }
+              </button>
+            </div>
+
+            {/* Description */}
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.5 }}>
+              {model.description || 'AI-powered detection model for video analytics.'}
+            </p>
+
+            {/* Confidence Threshold */}
+            <div style={{ padding: '14px 0 0', borderTop: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  Confidence Threshold
+                </span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--primary)' }}>
+                  {Math.round((model.confidence_threshold || 0.5) * 100)}%
+                </span>
+              </div>
+              <input
+                type="range" min="0.1" max="0.95" step="0.05"
+                value={model.confidence_threshold || 0.5}
+                onChange={(e) => updateConfidence(model.id, e.target.value)}
+                disabled={!model.enabled || updating === model.id}
+                style={{ width: '100%', marginTop: '4px', accentColor: 'var(--primary)', opacity: model.enabled ? 1 : 0.5 }}
+              />
+            </div>
+
+            {/* Status */}
+            <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className={`status-dot ${model.enabled ? 'status-online' : 'status-offline'}`}>
+                {model.enabled ? 'Active' : 'Disabled'}
+              </span>
+              <button className="btn btn-ghost btn-sm">
+                <FiInfo size={13} /> Details
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {filteredModels.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: '40px', marginBottom: '12px' }}>🤖</div>
+          <p style={{ fontWeight: 600 }}>No models found</p>
+          <p className="text-sm">Try changing the filter or refreshing</p>
+        </div>
+      )}
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 };
