@@ -1,5 +1,8 @@
+import os
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.api.v1 import router as api_router
@@ -33,6 +36,11 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(api_router, prefix="/api/v1")
+
+# Serve annotated thumbnail images (used by VideoProcessing results panel)
+_thumb_dir = Path("uploads/thumbnails")
+_thumb_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/thumbnails", StaticFiles(directory=str(_thumb_dir)), name="thumbnails")
 
 @app.get("/")
 async def root():
